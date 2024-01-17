@@ -80,8 +80,8 @@ jobs:
         uses: docker/build-push-action@v4
         if: steps.check_version.outputs.latest_version != ''
         with:
-          file: ./release_contents/Dockerfile
-          context: ./release_contents
+          file: ./Dockerfile
+          context: .
           platforms: linux/arm64, linux/amd64, 
           push: true
           tags: |
