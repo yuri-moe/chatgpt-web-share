@@ -1,0 +1,88 @@
+name: Build Docker Image
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+
+  workflow_dispatch:
+  
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:        
+      - name: Checkout
+        uses: actions/checkout@v3
+        
+      - name: Get tags
+        run: git fetch --tags origin
+      
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      
+      - name: Installing Dependencies
+        run: |
+          sudo apt-get install -y jq curl git
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Get Version
+        id: get_version
+        run: |
+          VERSION=$(curl -k -s https://api.github.com/repos/chatpire/chatgpt-web-share/releases/latest | jq .name | sed s/\"//g | sed s/v//g)
+          echo $VERSION
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+        
+      - name: Check Version
+        id: check_version
+        if: steps.get_version.outputs.version != ''
+        run: |
+          HAVE_TAG=false
+          VERSION=${{ steps.get_version.outputs.version }}
+          for tag in $(git tag); do
+            echo $tag
+            if [  "$VERSION" == "$tag" ]; then
+              HAVE_TAG=true
+            fi
+          done
+
+          echo $HAVE_TAG
+
+          if ! $HAVE_TAG; then
+            git tag ${{ steps.get_version.outputs.version }}
+            git push --tags
+            echo "latest_version=${{ steps.get_version.outputs.version }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get release
+        id: get_release
+        if: steps.check_version.outputs.latest_version != ''
+        run: |
+          # Download the release tarball
+          RELEASE_TARBALL_URL=$(curl -k -s https://api.github.com/repos/chatpire/chatgpt-web-share/releases/latest | jq -r .tarball_url)
+          wget -O release.tar.gz $RELEASE_TARBALL_URL
+
+          # Extract the tarball
+          mkdir release_contents
+          tar -xzvf release.tar.gz -C release_contents
+          
+      - name: Build and push
+        uses: docker/build-push-action@v4
+        if: steps.check_version.outputs.latest_version != ''
+        with:
+          file: ./release_contents/Dockerfile
+          context: ./release_contents
+          platforms: linux/arm64, linux/amd64, 
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_NS }}/chatgpt-web-share:${{ steps.check_gitlab_ce_version.outputs.latest_gitlab_ce_version }}-ce.0
+            ${{ secrets.DOCKER_NS }}/chatgpt-web-share:latest
