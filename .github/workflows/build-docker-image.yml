@@ -73,7 +73,7 @@ jobs:
 
           # Extract the tarball
           mkdir release_contents
-          tar -xzvf release.tar.gz -C release_contents
+          tar -xzvf release.tar.gz -C ./
           mv ./*chatgpt-web-share*/* ./
           
       - name: Build and push
