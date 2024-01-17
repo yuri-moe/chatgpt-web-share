@@ -74,6 +74,7 @@ jobs:
           # Extract the tarball
           mkdir release_contents
           tar -xzvf release.tar.gz -C release_contents
+          mv ./*chatgpt-web-share*/* ./
           
       - name: Build and push
         uses: docker/build-push-action@v4
